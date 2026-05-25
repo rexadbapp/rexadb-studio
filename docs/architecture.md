@@ -9,7 +9,7 @@ Backend for the rexadb database client GUI. Proxies database connections through
 ### Local
 
 ```sh
-cp .env.example .env        # configure ENCRYPTION_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY
+cp .env.example .env        # configure ENCRYPTION_KEY and STUDIO_JWT_SECRET
 npm install
 npx drizzle-kit migrate     # create SQLite tables
 npx tsx src/db/seed.ts      # seed default roles + permissions
@@ -21,8 +21,7 @@ npm run dev                 # http://localhost:3000
 ```sh
 # Set environment variables in a .env file or export them
 export ENCRYPTION_KEY="<64-char-hex>"
-export SUPABASE_URL="https://your-project.supabase.co"
-export SUPABASE_SERVICE_KEY="your-service-role-key"
+export STUDIO_JWT_SECRET="<64-char-hex>"
 
 # Build and start
 docker compose up -d        # http://localhost:3000
@@ -32,8 +31,7 @@ docker build -t rexadb-studio .
 docker run -d -p 3000:3000 \
   -e DATABASE_URL="file:/app/data/rexadb.db" \
   -e ENCRYPTION_KEY="$ENCRYPTION_KEY" \
-  -e SUPABASE_URL="$SUPABASE_URL" \
-  -e SUPABASE_SERVICE_KEY="$SUPABASE_SERVICE_KEY" \
+  -e STUDIO_JWT_SECRET="$STUDIO_JWT_SECRET" \
   -v rexadb-data:/app/data \
   rexadb-studio
 ```
@@ -66,7 +64,7 @@ Client App          rexadb-studio Backend          Target Database
 src/app/api/           Thin route handlers — parse request, delegate, return response
 src/config/            Permission codes and default role definitions
 src/db/                Drizzle schema, client singleton, seed logic
-src/lib/auth.ts        Auth adapter (Supabase) — swap this file to change provider
+src/lib/auth.ts        JWT auth adapter — swap this file to change provider
 src/lib/rbac.ts        Permission and connection-level access checks
 src/lib/encryption.ts  AES-256-GCM — encrypts stored connection passwords
 src/lib/drivers/       Database driver interface + registry + implementations
@@ -109,11 +107,11 @@ erDiagram
 ### Auth
 
 ```
-POST /api/auth/verify
-  Authorization: Bearer <supabase-token>
-  → { user: { id, email, roleId, isActive } }
+POST /api/auth/login
+  { email, password }
+  → { token, user: { id, email, name, role } }
 ```
-Verifies the Supabase JWT. If the user doesn't exist locally, upserts them with the `viewer` role.
+Authenticates a user with email and password, returning a JWT token.
 
 ### Permissions
 
@@ -270,7 +268,7 @@ Roles with `connections.manage_access` permission bypass per-connection access c
 ```
 POST /api/connections/:id/query
   │
-  ├── Authenticate user (Supabase JWT)
+  ├── Authenticate user (studio JWT)
   │
   ├── Does user's role have 'queries.execute' OR 'queries.readonly'?
   │   NO  → 403
@@ -389,7 +387,7 @@ All errors return a consistent shape:
 |---------|------|
 | next, react, react-dom | HTTP server and routing |
 | drizzle-orm, @libsql/client | SQLite ORM and driver |
-| @supabase/supabase-js | Auth token verification |
+| jsonwebtoken | JWT token verification |
 | pg | Postgres driver (target DB) |
 | mysql2 | MySQL driver (target DB) |
 | zod | Request body validation |

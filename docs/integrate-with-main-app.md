@@ -1,11 +1,11 @@
 # Integrating Your Main App with rexadb-studio
 
-This document explains how to integrate your main application (which uses Supabase for authentication) with the rexadb-studio backend using the invite-based authentication system.
+This document explains how to integrate your main application with the rexadb-studio backend using the invite-based authentication system.
 
 ## Overview
 
 The rexadb-studio backend uses an invite-based system to onboard users from your main application. This ensures:
-- **Isolation**: The studio backend never needs access to your main app's Supabase configuration or user database.
+- **Isolation**: The studio backend never needs access to your main app's user database or auth configuration.
 - **Consent**: Users must explicitly accept an invitation to join the studio.
 - **Audit Trail**: All invitation actions are logged in the studio's SQLite database.
 - **Minimal Data Exchange**: Only essential user information (name, email) is shared at onboarding.
@@ -256,7 +256,7 @@ Common errors your main app should handle:
 2. Set environment variables:
    ```bash
    ENCRYPTION_KEY="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-   STUDIO_JWT_SECRET="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   STUDIO_JWT_SECRET="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
    ```
 3. Test invite flow:
    - Generate invite: `POST /api/invites/generate` (as studio admin)

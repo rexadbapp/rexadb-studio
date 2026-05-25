@@ -5,11 +5,7 @@
 ## Quick Start
 
 ```sh
-cp .env.example .env
-npm install
-npx drizzle-kit migrate
-npx tsx src/db/seed.ts
-npm run dev        # http://localhost:3000
+npm run setup     # interactive — prompts for admin, generates secrets, installs, migrates, seeds
 ```
 
 Or with Docker:
@@ -22,7 +18,7 @@ docker compose up -d
 
 ```
 Client App → POST /query (Bearer token) → rexadb-studio
-  ├── Verify Supabase JWT
+  ├── Verify JWT
   ├── Check RBAC permissions
   ├── Decrypt stored credentials (AES-256-GCM)
   ├── Connect via driver (pg / mysql2)
@@ -34,7 +30,7 @@ Client App → POST /query (Bearer token) → rexadb-studio
 | Layer | Description |
 |-------|-------------|
 | `src/app/api/` | Thin route handlers |
-| `src/lib/auth.ts` | Auth adapter (Supabase, swappable) |
+| `src/lib/auth.ts` | JWT auth adapter (swappable) |
 | `src/lib/rbac.ts` | Permission & connection-level access checks |
 | `src/lib/drivers/` | Pluggable database drivers (Postgres, MySQL) |
 | `src/lib/encryption.ts` | AES-256-GCM credential encryption |
@@ -60,4 +56,4 @@ Granular permission system with built-in roles (`super_admin`, `admin`, `develop
 
 ## Tech Stack
 
-**Next.js** (App Router), **Drizzle ORM** + **libSQL** (SQLite), **Supabase** (auth), **pg** / **mysql2** (drivers), **Zod** (validation), **AES-256-GCM** (encryption).
+**Next.js** (App Router), **Drizzle ORM** + **libSQL** (SQLite), **pg** / **mysql2** (drivers), **Zod** (validation), **AES-256-GCM** (encryption).

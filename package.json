@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node setup.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -15,7 +16,6 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
-    "@supabase/supabase-js": "^2.49.0",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.42.0",
     "jsonwebtoken": "^9.0.3",

@@ -7,8 +7,6 @@ services:
     environment:
       DATABASE_URL: "file:/app/data/rexadb.db"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
     volumes:
       - rexadb-data:/app/data
     restart: unless-stopped

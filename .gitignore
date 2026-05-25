@@ -1,7 +1,6 @@
 node_modules/
 .next/
 data/
-drizzle/
 .env
 .env.local
 *.db
