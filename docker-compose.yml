@@ -1,0 +1,17 @@
+services:
+  rexadb:
+    build: .
+    container_name: rexadb-studio
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:/app/data/rexadb.db"
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+    volumes:
+      - rexadb-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  rexadb-data:
