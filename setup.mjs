@@ -3,7 +3,7 @@
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { randomBytes } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
@@ -64,6 +64,10 @@ async function main() {
 
   console.log('Installing dependencies...');
   execSync('npm install', { stdio: 'inherit', cwd: resolve('.') });
+
+  if (!existsSync('./data')) {
+    mkdirSync('./data', { recursive: true });
+  }
 
   console.log('Running database migrations...');
   execSync('npx drizzle-kit migrate', { stdio: 'inherit', cwd: resolve('.') });

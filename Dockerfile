@@ -21,8 +21,9 @@ COPY --from=builder --chown=rexadb:rexadb /app/package.json ./
 COPY --from=builder --chown=rexadb:rexadb /app/node_modules ./node_modules
 COPY --from=builder --chown=rexadb:rexadb /app/src ./src
 COPY --from=builder --chown=rexadb:rexadb /app/tsconfig.json ./
+COPY --chown=rexadb:rexadb entrypoint.sh /app/entrypoint.sh
 
-RUN mkdir -p /app/data && chown rexadb:rexadb /app/data
+RUN chmod +x /app/entrypoint.sh
 
 USER rexadb
 
@@ -32,4 +33,4 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL="file:/app/data/rexadb.db"
 
-CMD ["sh", "-c", "./node_modules/.bin/drizzle-kit migrate && ./node_modules/.bin/tsx src/db/create-admin.ts && node server.js"]
+ENTRYPOINT ["/app/entrypoint.sh"]

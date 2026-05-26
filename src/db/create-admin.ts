@@ -11,8 +11,8 @@ async function createAdmin() {
   const email = process.env.ADMIN_EMAIL ?? 'admin@rexadb.local';
   const password = process.env.ADMIN_PASSWORD;
   if (!password) {
-    console.error('ADMIN_PASSWORD environment variable is required');
-    process.exit(1);
+    console.log('ADMIN_PASSWORD not set — skipping admin user creation');
+    return;
   }
 
   const db = getDb();
