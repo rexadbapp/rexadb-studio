@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, unique } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 export const roles = sqliteTable('roles', {
@@ -189,6 +189,41 @@ export const pendingQueries = sqliteTable('pending_queries', {
   createdAt: text('created_at').notNull().default(''),
 });
 
+export const kvStore = sqliteTable('kv_store', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => users.id),
+  createdAt: text('created_at').notNull().default(''),
+  updatedAt: text('updated_at').notNull().default(''),
+});
+
+export const kvStorePermissions = sqliteTable(
+  'kv_store_permissions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    kvId: text('kv_id')
+      .notNull()
+      .references(() => kvStore.id, { onDelete: 'cascade' }),
+    action: text('action', {
+      enum: ['read', 'write_value', 'manage_permissions', 'delete'],
+    }).notNull(),
+    granteeType: text('grantee_type', {
+      enum: ['user', 'role', 'team', 'studio', 'public'],
+    }).notNull(),
+    granteeId: text('grantee_id'),
+    grantedBy: text('granted_by')
+      .notNull()
+      .references(() => users.id),
+    grantedAt: text('granted_at').notNull().default(''),
+  },
+  (t) => ({
+    uniq: unique().on(t.kvId, t.action, t.granteeType, t.granteeId),
+  })
+);
+
 export const auditLogs = sqliteTable('audit_logs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   ts: integer('ts').notNull(),
@@ -235,6 +270,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   teamsCreated: many(teams, { relationName: 'createdByUser' }),
   pendingQueries: many(pendingQueries, { relationName: 'requestedByUser' }),
   approvedQueries: many(pendingQueries, { relationName: 'approvedByUser' }),
+  kvStore: many(kvStore),
+  grantedKvPermissions: many(kvStorePermissions, { relationName: 'granter' }),
 }));
 
 export const connectionsRelations = relations(connections, ({ one, many }) => ({
@@ -318,6 +355,25 @@ export const teamPermissionsRelations = relations(teamPermissions, ({ one }) => 
   team: one(teams, {
     fields: [teamPermissions.teamId],
     references: [teams.id],
+  }),
+}));
+
+export const kvStoreRelations = relations(kvStore, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [kvStore.ownerId],
+    references: [users.id],
+  }),
+  permissions: many(kvStorePermissions),
+}));
+
+export const kvStorePermissionsRelations = relations(kvStorePermissions, ({ one }) => ({
+  kvStore: one(kvStore, {
+    fields: [kvStorePermissions.kvId],
+    references: [kvStore.id],
+  }),
+  granter: one(users, {
+    fields: [kvStorePermissions.grantedBy],
+    references: [users.id],
   }),
 }));
 

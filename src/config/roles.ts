@@ -37,12 +37,13 @@ export const DEFAULT_ROLES: RoleDef[] = [
       'queries.readonly',
       'queries.saved',
       'permissions.view',
+      'kv_store.create',
     ],
   },
   {
     name: 'viewer',
     description: 'Read-only access to connections and queries',
     isSystem: true,
-    permissions: ['connections.read', 'queries.readonly', 'permissions.view'],
+    permissions: ['connections.read', 'queries.readonly', 'permissions.view', 'kv_store.create'],
   },
 ];

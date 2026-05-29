@@ -1,3 +1,5 @@
+import { appendFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { getDb } from '@/db';
 import { auditLogs } from '@/db/schema';
 
@@ -59,6 +61,17 @@ function isBelowSizeLimit(value: unknown): boolean {
   }
 }
 
+const LOG_FILE = process.env.AUDIT_LOG_FILE ?? join(process.cwd(), 'data', 'audit-logs.jsonl');
+
+async function appendToFile(entry: AuditEntry): Promise<void> {
+  try {
+    const line = JSON.stringify(entry) + '\n';
+    await appendFile(LOG_FILE, line, 'utf-8');
+  } catch (e) {
+    console.error('[audit] file append failed:', e);
+  }
+}
+
 export function auditLog(entry: AuditEntry): void {
   const truncatedResBody = entry.resBody !== undefined ? truncateBody(entry.resBody) : undefined;
   const safeEntry: AuditEntry = {
@@ -99,6 +112,8 @@ export function auditLog(entry: AuditEntry): void {
       console.error('[audit] insert failed:', e);
     }
   })();
+
+  void appendToFile(entry);
 }
 
 export function getBufferAuditLog(): AuditEntry[] {

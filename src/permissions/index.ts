@@ -6,6 +6,7 @@ import { definitions as invites } from './invites';
 import { definitions as audit } from './audit';
 import { definitions as permissionsView } from './permissions-view';
 import { definitions as teams } from './teams';
+import { definitions as kvStore } from './kv-store';
 
 export interface PermissionDef {
   code: string;
@@ -22,6 +23,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...audit,
   ...permissionsView,
   ...teams,
+  ...kvStore,
 ];
 
 const ROUTE_MAP: Record<string, string[]> = {
@@ -50,6 +52,8 @@ const ROUTE_MAP: Record<string, string[]> = {
   'teams.manage_members': ['POST /api/teams/[id]/members', 'DELETE /api/teams/[id]/members/[userId]'],
   'teams.manage_access': ['GET /api/teams/[id]/access', 'PUT /api/teams/[id]/access'],
   'queries.approve': ['POST /api/connections/[id]/pending-queries/[pqId]/approve', 'POST /api/connections/[id]/pending-queries/[pqId]/reject', 'GET /api/connections/[id]/pending-queries'],
+  'kv_store.create': ['POST /api/kv-store'],
+  'kv_store.manage': ['GET /api/kv-store', 'GET /api/kv-store/[id]', 'PUT /api/kv-store/[id]', 'DELETE /api/kv-store/[id]'],
 };
 
 export function validateRouteCoverage(): string[] {
