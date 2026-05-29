@@ -1,5 +1,3 @@
-import { appendFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { getDb } from '@/db';
 import { auditLogs } from '@/db/schema';
 
@@ -61,20 +59,9 @@ function isBelowSizeLimit(value: unknown): boolean {
   }
 }
 
-const LOG_FILE = process.env.AUDIT_LOG_FILE ?? join(process.cwd(), 'data', 'audit-logs.jsonl');
-
-async function appendToFile(entry: AuditEntry): Promise<void> {
-  try {
-    const line = JSON.stringify(entry) + '\n';
-    await appendFile(LOG_FILE, line, 'utf-8');
-  } catch (e) {
-    console.error('[audit] file append failed:', e);
-  }
-}
-
-export function auditLog(entry: AuditEntry): void {
+function truncateEntry(entry: AuditEntry): AuditEntry {
   const truncatedResBody = entry.resBody !== undefined ? truncateBody(entry.resBody) : undefined;
-  const safeEntry: AuditEntry = {
+  return {
     ...entry,
     resBody: truncatedResBody !== undefined && !isBelowSizeLimit(truncatedResBody)
       ? { __truncated__: true }
@@ -83,37 +70,26 @@ export function auditLog(entry: AuditEntry): void {
       ? (truncateBody(entry.reqHeaders) as Record<string, string | undefined>)
       : undefined,
   };
-  buffer.push(safeEntry);
-  if (buffer.length > MAX) {
-    buffer.splice(0, buffer.length - MAX);
+}
+
+async function insertAuditEntry(safeEntry: AuditEntry): Promise<void> {
+  try {
+    const bodyForLog = safeEntry.resBody !== undefined ? safeJsonStringify(safeEntry.resBody, bigintReplacer) : null;
+    const reqHeadersStr = safeEntry.reqHeaders !== undefined ? safeJsonStringify(safeEntry.reqHeaders) : null;
+    await getDb().insert(auditLogs).values({
+      ts: safeEntry.ts, method: safeEntry.method, url: safeEntry.url, status: safeEntry.status,
+      reqHeaders: reqHeadersStr, resBody: bodyForLog, duration: safeEntry.duration ?? null, userId: safeEntry.userId ?? null,
+    });
+  } catch (e) {
+    console.error('[audit] insert failed:', e);
   }
+}
 
-  void (async () => {
-    try {
-      const bodyForLog = safeEntry.resBody !== undefined
-        ? safeJsonStringify(safeEntry.resBody, bigintReplacer)
-        : null;
-
-      const reqHeadersStr = safeEntry.reqHeaders !== undefined
-        ? safeJsonStringify(safeEntry.reqHeaders)
-        : null;
-
-      await getDb().insert(auditLogs).values({
-        ts: safeEntry.ts,
-        method: safeEntry.method,
-        url: safeEntry.url,
-        status: safeEntry.status,
-        reqHeaders: reqHeadersStr,
-        resBody: bodyForLog,
-        duration: safeEntry.duration ?? null,
-        userId: safeEntry.userId ?? null,
-      });
-    } catch (e) {
-      console.error('[audit] insert failed:', e);
-    }
-  })();
-
-  void appendToFile(entry);
+export function auditLog(entry: AuditEntry): void {
+  const safeEntry = truncateEntry(entry);
+  buffer.push(safeEntry);
+  if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+  void insertAuditEntry(safeEntry);
 }
 
 export function getBufferAuditLog(): AuditEntry[] {

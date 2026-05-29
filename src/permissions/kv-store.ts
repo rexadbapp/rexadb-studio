@@ -1,6 +1,6 @@
 import type { PermissionDef } from './index';
 
-export const definitions: PermissionDef[] = [
+export const kvStoreDefinitions: PermissionDef[] = [
   {
     code: 'kv_store.create',
     name: 'Create KV Store Entries',

@@ -1,32 +1,56 @@
 import { getDb } from '@/db';
-import { kvStore, kvStorePermissions, teamMembers, users, rolePermissions, permissions } from '@/db/schema';
-import { eq, and, inArray, or } from 'drizzle-orm';
+import { kvStore, kvStorePermissions, teamMembers, users } from '@/db/schema';
+import { eq, and, inArray, or, type SQL } from 'drizzle-orm';
+import { z } from 'zod';
 import { AppError } from './errors';
+import { hasPermission } from './rbac';
+
+export const kvPermissionSchema = z.object({
+  action: z.enum(['read', 'write_value', 'manage_permissions', 'delete']),
+  type: z.enum(['user', 'role', 'team', 'studio', 'public']),
+  id: z.string().optional(),
+});
 
 type KvAction = 'read' | 'write_value' | 'manage_permissions' | 'delete';
 
-async function hasKvManagePerm(userId: string): Promise<boolean> {
+function hasKvManagePerm(userId: string): Promise<boolean> {
+  return hasPermission(userId, 'kv_store.manage');
+}
+
+async function getUserAccessData(userId: string): Promise<{ roleId: number; teamIds: string[] } | null> {
   const db = getDb();
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { roleId: true },
   });
-  if (!user) return false;
-  const row = await db
-    .select({ id: permissions.id })
-    .from(rolePermissions)
-    .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-    .where(
-      and(
-        eq(rolePermissions.roleId, user.roleId),
-        eq(permissions.code, 'kv_store.manage')
-      )
-    )
-    .limit(1);
-  return row.length > 0;
+  if (!user) return null;
+  const teamIds = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, userId))
+    .then(rows => rows.map(r => String(r.teamId)));
+  return { roleId: user.roleId, teamIds };
 }
 
-export async function checkKvAccess(
+function buildGranteeConditions(
+  userId: string,
+  roleId: number,
+  teamIds: string[],
+  includePublic = false
+): SQL[] {
+  const conditions: (SQL | undefined)[] = [
+    eq(kvStorePermissions.granteeType, 'studio'),
+    and(eq(kvStorePermissions.granteeType, 'user'), eq(kvStorePermissions.granteeId, userId)),
+    and(eq(kvStorePermissions.granteeType, 'role'), inArray(kvStorePermissions.granteeId, [String(roleId)])),
+  ];
+  if (includePublic) conditions.unshift(eq(kvStorePermissions.granteeType, 'public'));
+  if (teamIds.length > 0) {
+    conditions.push(and(eq(kvStorePermissions.granteeType, 'team'), inArray(kvStorePermissions.granteeId, teamIds)));
+  }
+  return conditions.filter((c): c is SQL => !!c);
+}
+
+async function checkKvAccess(
   kvId: string,
   userId: string | undefined,
   action: KvAction
@@ -44,60 +68,21 @@ export async function checkKvAccess(
   if (!userId) {
     if (action !== 'read') return false;
     const pub = await db.query.kvStorePermissions.findFirst({
-      where: and(
-        eq(kvStorePermissions.kvId, kvId),
-        eq(kvStorePermissions.action, 'read'),
-        eq(kvStorePermissions.granteeType, 'public')
-      ),
+      where: and(eq(kvStorePermissions.kvId, kvId), eq(kvStorePermissions.action, 'read'), eq(kvStorePermissions.granteeType, 'public')),
     });
     return !!pub;
   }
 
   if (await hasKvManagePerm(userId)) return true;
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { roleId: true },
-  });
-  if (!user) return false;
-
-  const userTeamIds = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, userId))
-    .then(rows => rows.map(r => String(r.teamId)));
-
-  const conditions = [
-    eq(kvStorePermissions.granteeType, 'studio'),
-    eq(kvStorePermissions.granteeType, 'public'),
-    and(
-      eq(kvStorePermissions.granteeType, 'user'),
-      eq(kvStorePermissions.granteeId, userId)
-    ),
-    and(
-      eq(kvStorePermissions.granteeType, 'role'),
-      inArray(kvStorePermissions.granteeId, [String(user.roleId)])
-    ),
-  ];
-
-  if (userTeamIds.length > 0) {
-    conditions.push(
-      and(
-        eq(kvStorePermissions.granteeType, 'team'),
-        inArray(kvStorePermissions.granteeId, userTeamIds)
-      )
-    );
-  }
+  const data = await getUserAccessData(userId);
+  if (!data) return false;
 
   const grants = await db
     .select()
     .from(kvStorePermissions)
     .where(
-      and(
-        eq(kvStorePermissions.kvId, kvId),
-        eq(kvStorePermissions.action, action),
-        or(...conditions)
-      )
+      and(eq(kvStorePermissions.kvId, kvId), eq(kvStorePermissions.action, action), or(...buildGranteeConditions(userId, data.roleId, data.teamIds, true)))
     );
 
   return grants.length > 0;
@@ -109,35 +94,18 @@ export async function requireKvAccess(
   action: KvAction
 ): Promise<void> {
   const ok = await checkKvAccess(kvId, userId, action);
-  if (!ok) {
-    throw new AppError(`You don't have permission to ${action.replace('_', ' ')} this entry`, 403);
-  }
+  if (!ok) throw new AppError(`You don't have permission to ${action.replace('_', ' ')} this entry`, 403);
 }
 
-export async function getAccessibleKvIds(
-  userId: string
-): Promise<string[]> {
+export async function getAccessibleKvIds(userId: string): Promise<string[]> {
   const db = getDb();
 
   if (await hasKvManagePerm(userId)) {
-    const all = await db
-      .select({ id: kvStore.id })
-      .from(kvStore)
-      .then(rows => rows.map(r => r.id));
-    return all;
+    return await db.select({ id: kvStore.id }).from(kvStore).then(rows => rows.map(r => r.id));
   }
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { roleId: true },
-  });
-  if (!user) return [];
-
-  const userTeamIds = await db
-    .select({ teamId: teamMembers.teamId })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, userId))
-    .then(rows => rows.map(r => String(r.teamId)));
+  const data = await getUserAccessData(userId);
+  if (!data) return [];
 
   const owned = await db
     .select({ id: kvStore.id })
@@ -145,35 +113,11 @@ export async function getAccessibleKvIds(
     .where(eq(kvStore.ownerId, userId))
     .then(rows => rows.map(r => r.id));
 
-  const conditions = [
-    eq(kvStorePermissions.granteeType, 'studio'),
-    and(
-      eq(kvStorePermissions.granteeType, 'user'),
-      eq(kvStorePermissions.granteeId, userId)
-    ),
-    and(
-      eq(kvStorePermissions.granteeType, 'role'),
-      inArray(kvStorePermissions.granteeId, [String(user.roleId)])
-    ),
-  ];
-
-  if (userTeamIds.length > 0) {
-    conditions.push(
-      and(
-        eq(kvStorePermissions.granteeType, 'team'),
-        inArray(kvStorePermissions.granteeId, userTeamIds)
-      )
-    );
-  }
-
   const granted = await db
     .select({ kvId: kvStorePermissions.kvId })
     .from(kvStorePermissions)
     .where(
-      and(
-        eq(kvStorePermissions.action, 'read'),
-        or(...conditions)
-      )
+      and(eq(kvStorePermissions.action, 'read'), or(...buildGranteeConditions(userId, data.roleId, data.teamIds)))
     )
     .then(rows => rows.map(r => r.kvId));
 

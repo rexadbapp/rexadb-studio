@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import type { DatabaseDriver, ConnectionConfig, QueryResult } from './index';
+import { type DatabaseDriver, type ConnectionConfig, type QueryResult } from './types';
 
 export class PostgresDriver implements DatabaseDriver {
   private pool: Pool;
@@ -26,21 +26,5 @@ export class PostgresDriver implements DatabaseDriver {
       fields: result.fields.map((f) => f.name),
       rowCount: result.rowCount ?? 0,
     };
-  }
-
-  isReadOnlyQuery(sql: string): boolean {
-    const trimmed = sql.trim().toUpperCase();
-    if (/^(SELECT|WITH|EXPLAIN|DESCRIBE|SHOW)\b/.test(trimmed)) return true;
-    if (/^(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|GRANT|REVOKE)\b/.test(trimmed)) return false;
-    return false;
-  }
-
-  async testConnection(): Promise<boolean> {
-    try {
-      await this.pool.query('SELECT 1');
-      return true;
-    } catch {
-      return false;
-    }
   }
 }

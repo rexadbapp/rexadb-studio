@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { AppError } from './errors';
+import { AppError } from './app-error';
 import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -19,27 +19,30 @@ interface VerifiedToken {
   exp: number;
 }
 
+function getSecret(): string {
+  return process.env.STUDIO_JWT_SECRET ?? '';
+}
+
+function decodePayload(token: string): Record<string, unknown> | null {
+  const secret = getSecret();
+  if (!secret) return null;
+  try {
+    const decoded = verify(token, secret);
+    return typeof decoded === 'object' && decoded !== null ? (decoded as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Verify a studio session token and return the payload if valid.
  * @param token - The JWT token to verify
  * @returns The decoded payload if valid, otherwise null
  */
 export function verifyStudioToken(token: string): VerifiedToken | null {
-  const studioSecret = process.env.STUDIO_JWT_SECRET ?? '';
-  if (!studioSecret) return null;
-  try {
-    const decoded = verify(token, studioSecret);
-    if (typeof decoded === 'object' && decoded !== null && 'sub' in decoded && typeof decoded.sub === 'string') {
-      return {
-        sub: decoded.sub,
-        iat: decoded.iat as number,
-        exp: decoded.exp as number,
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const decoded = decodePayload(token);
+  if (!decoded || typeof decoded.sub !== 'string') return null;
+  return { sub: decoded.sub, iat: decoded.iat as number, exp: decoded.exp as number };
 }
 
 /**
@@ -48,37 +51,21 @@ export function verifyStudioToken(token: string): VerifiedToken | null {
  * @returns A signed JWT token
  */
 export function generateStudioToken(userId: string): string {
-  const studioSecret = process.env.STUDIO_JWT_SECRET ?? '';
-  if (!studioSecret) {
-    throw new AppError('STUDIO_JWT_SECRET must be set in environment variables', 500);
-  }
-  const payload = { sub: userId };
-  const options = { expiresIn: 30 * 24 * 60 * 60 }; // 30 days in seconds
-  return sign(payload, studioSecret, options);
+  const secret = getSecret();
+  if (!secret) throw new AppError('STUDIO_JWT_SECRET must be set in environment variables', 500);
+  return sign({ sub: userId }, secret, { expiresIn: 30 * 24 * 60 * 60 });
 }
 
 export function generateTempToken(userId: string): string {
-  const studioSecret = process.env.STUDIO_JWT_SECRET ?? '';
-  if (!studioSecret) {
-    throw new AppError('STUDIO_JWT_SECRET must be set in environment variables', 500);
-  }
-  const payload = { sub: userId, purpose: 'totp' };
-  const options = { expiresIn: 5 * 60 }; // 5 minutes
-  return sign(payload, studioSecret, options);
+  const secret = getSecret();
+  if (!secret) throw new AppError('STUDIO_JWT_SECRET must be set in environment variables', 500);
+  return sign({ sub: userId, purpose: 'totp' }, secret, { expiresIn: 5 * 60 });
 }
 
 export function verifyTempToken(token: string): { userId: string } | null {
-  const studioSecret = process.env.STUDIO_JWT_SECRET ?? '';
-  if (!studioSecret) return null;
-  try {
-    const decoded = verify(token, studioSecret);
-    if (typeof decoded === 'object' && decoded !== null && decoded.purpose === 'totp' && typeof decoded.sub === 'string') {
-      return { userId: decoded.sub };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const decoded = decodePayload(token);
+  if (!decoded || decoded.purpose !== 'totp' || typeof decoded.sub !== 'string') return null;
+  return { userId: decoded.sub };
 }
 
 export async function authenticate(req: NextRequest): Promise<UserPayload> {

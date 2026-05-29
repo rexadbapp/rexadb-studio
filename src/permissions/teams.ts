@@ -1,6 +1,6 @@
 import type { PermissionDef } from './index';
 
-export const definitions: PermissionDef[] = [
+export const teamDefinitions: PermissionDef[] = [
   { code: 'teams.create', name: 'Create Teams', description: 'Create new teams' },
   { code: 'teams.read', name: 'Read Teams', description: 'View team details and members' },
   { code: 'teams.update', name: 'Update Teams', description: 'Edit team name and description' },

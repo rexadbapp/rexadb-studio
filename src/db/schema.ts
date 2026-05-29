@@ -1,20 +1,47 @@
 import { sqliteTable, text, integer, primaryKey, unique } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
+// ── Column helpers ──────────────────────────────────────────────
+function autoId() {
+  return integer('id').primaryKey({ autoIncrement: true });
+}
+function uuidId() {
+  return text('id').primaryKey();
+}
+function createdAt() {
+  return text('created_at').notNull().default('');
+}
+function updatedAt() {
+  return text('updated_at').notNull().default('');
+}
+function createdBy() {
+  return text('created_by').notNull().references(() => users.id);
+}
+function grantedBy() {
+  return text('granted_by').notNull().references(() => users.id);
+}
+function grantedAt() {
+  return text('granted_at').notNull().default('');
+}
+function boolField(name: string) {
+  return integer(name, { mode: 'boolean' }).notNull().default(false);
+}
+// ─────────────────────────────────────────────────────────────────
+
 export const roles = sqliteTable('roles', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: autoId(),
   name: text('name').unique().notNull(),
   description: text('description').notNull().default(''),
-  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
-  createdAt: text('created_at').notNull().default(''),
+  isSystem: boolField('is_system'),
+  createdAt: createdAt(),
 });
 
 export const permissions = sqliteTable('permissions', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: autoId(),
   code: text('code').unique().notNull(),
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
-  createdAt: text('created_at').notNull().default(''),
+  createdAt: createdAt(),
 });
 
 export const rolePermissions = sqliteTable(
@@ -33,22 +60,20 @@ export const rolePermissions = sqliteTable(
 );
 
 export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
+  id: uuidId(),
   email: text('email').notNull(),
   name: text('name').notNull().default(''),
-  roleId: integer('role_id')
-    .notNull()
-    .references(() => roles.id),
+  roleId: integer('role_id').notNull().references(() => roles.id),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   avatarUrl: text('avatar_url'),
   passwordHash: text('password_hash'),
   totpSecret: text('totp_secret'),
-  totpEnabled: integer('totp_enabled', { mode: 'boolean' }).notNull().default(false),
-  createdAt: text('created_at').notNull().default(''),
+  totpEnabled: boolField('totp_enabled'),
+  createdAt: createdAt(),
 });
 
 export const connections = sqliteTable('connections', {
-  id: text('id').primaryKey(),
+  id: uuidId(),
   name: text('name').notNull(),
   type: text('type', { enum: ['postgres', 'mysql'] }).notNull(),
   host: text('host').notNull(),
@@ -56,23 +81,17 @@ export const connections = sqliteTable('connections', {
   database: text('database').notNull(),
   username: text('username').notNull(),
   encryptedPassword: text('encrypted_password').notNull(),
-  ssl: integer('ssl', { mode: 'boolean' }).notNull().default(false),
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => users.id),
-  createdAt: text('created_at').notNull().default(''),
-  updatedAt: text('updated_at').notNull().default(''),
+  ssl: boolField('ssl'),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
 export const connectionAccess = sqliteTable('connection_access', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  connectionId: text('connection_id')
-    .notNull()
-    .references(() => connections.id, { onDelete: 'cascade' }),
-  roleId: integer('role_id')
-    .references(() => roles.id, { onDelete: 'cascade' }),
-  teamId: integer('team_id')
-    .references(() => teams.id, { onDelete: 'cascade' }),
+  id: autoId(),
+  connectionId: text('connection_id').notNull().references(() => connections.id, { onDelete: 'cascade' }),
+  roleId: integer('role_id').references(() => roles.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'cascade' }),
   accessType: text('access_type', {
     enum: ['FULL_ACCESS', 'READ_ONLY', 'READ_AND_REQUEST', 'CUSTOM'],
   }).notNull(),
@@ -81,69 +100,49 @@ export const connectionAccess = sqliteTable('connection_access', {
 });
 
 export const savedQueries = sqliteTable('saved_queries', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  connectionId: text('connection_id')
-    .notNull()
-    .references(() => connections.id, { onDelete: 'cascade' }),
+  id: autoId(),
+  connectionId: text('connection_id').notNull().references(() => connections.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   queryText: text('query_text').notNull(),
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => users.id),
-  createdAt: text('created_at').notNull().default(''),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
 });
 
 export const queryLogs = sqliteTable('query_logs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  connectionId: text('connection_id')
-    .notNull()
-    .references(() => connections.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id),
+  id: autoId(),
+  connectionId: text('connection_id').notNull().references(() => connections.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id),
   query: text('query').notNull(),
   duration: integer('duration').notNull().default(0),
   executedAt: text('executed_at').notNull().default(''),
 });
 
 export const invites = sqliteTable('invites', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: autoId(),
   tokenHash: text('token_hash').notNull().unique(),
   email: text('email').notNull(),
-  roleId: integer('role_id')
-    .notNull()
-    .references(() => roles.id),
-  status: text('status', { enum: ['PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED'] })
-    .notNull()
-    .default('PENDING'),
+  roleId: integer('role_id').notNull().references(() => roles.id),
+  status: text('status', { enum: ['PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED'] }).notNull().default('PENDING'),
   expiresAt: text('expires_at').notNull(),
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => users.id),
-  createdAt: text('created_at').notNull().default(''),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
   acceptedAt: text('accepted_at'),
 });
 
 export const teams = sqliteTable('teams', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: autoId(),
   name: text('name').notNull().unique(),
   description: text('description').notNull().default(''),
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => users.id),
-  createdAt: text('created_at').notNull().default(''),
-  updatedAt: text('updated_at').notNull().default(''),
+  createdBy: createdBy(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
 export const teamMembers = sqliteTable(
   'team_members',
   {
-    teamId: integer('team_id')
-      .notNull()
-      .references(() => teams.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: text('role', { enum: ['admin', 'member'] }).notNull().default('member'),
     joinedAt: text('joined_at').notNull().default(''),
   },
@@ -155,14 +154,10 @@ export const teamMembers = sqliteTable(
 export const teamPermissions = sqliteTable(
   'team_permissions',
   {
-    teamId: integer('team_id')
-      .notNull()
-      .references(() => teams.id, { onDelete: 'cascade' }),
+    teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
     permissionCode: text('permission_code').notNull(),
-    grantedBy: text('granted_by')
-      .notNull()
-      .references(() => users.id),
-    grantedAt: text('granted_at').notNull().default(''),
+    grantedBy: grantedBy(),
+    grantedAt: grantedAt(),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.teamId, t.permissionCode] }),
@@ -170,54 +165,37 @@ export const teamPermissions = sqliteTable(
 );
 
 export const pendingQueries = sqliteTable('pending_queries', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  connectionId: text('connection_id')
-    .notNull()
-    .references(() => connections.id, { onDelete: 'cascade' }),
-  teamId: integer('team_id')
-    .references(() => teams.id, { onDelete: 'set null' }),
-  requestedBy: text('requested_by')
-    .notNull()
-    .references(() => users.id),
+  id: autoId(),
+  connectionId: text('connection_id').notNull().references(() => connections.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  requestedBy: text('requested_by').notNull().references(() => users.id),
   sql: text('sql').notNull(),
   params: text('params'),
-  status: text('status', { enum: ['PENDING', 'APPROVED', 'REJECTED'] })
-    .notNull()
-    .default('PENDING'),
+  status: text('status', { enum: ['PENDING', 'APPROVED', 'REJECTED'] }).notNull().default('PENDING'),
   approvedBy: text('approved_by').references(() => users.id),
   approvedAt: text('approved_at'),
-  createdAt: text('created_at').notNull().default(''),
+  createdAt: createdAt(),
 });
 
 export const kvStore = sqliteTable('kv_store', {
-  id: text('id').primaryKey(),
+  id: uuidId(),
   key: text('key').notNull(),
   value: text('value').notNull(),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => users.id),
-  createdAt: text('created_at').notNull().default(''),
-  updatedAt: text('updated_at').notNull().default(''),
+  ownerId: text('owner_id').notNull().references(() => users.id),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
 });
 
 export const kvStorePermissions = sqliteTable(
   'kv_store_permissions',
   {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    kvId: text('kv_id')
-      .notNull()
-      .references(() => kvStore.id, { onDelete: 'cascade' }),
-    action: text('action', {
-      enum: ['read', 'write_value', 'manage_permissions', 'delete'],
-    }).notNull(),
-    granteeType: text('grantee_type', {
-      enum: ['user', 'role', 'team', 'studio', 'public'],
-    }).notNull(),
+    id: autoId(),
+    kvId: text('kv_id').notNull().references(() => kvStore.id, { onDelete: 'cascade' }),
+    action: text('action', { enum: ['read', 'write_value', 'manage_permissions', 'delete'] }).notNull(),
+    granteeType: text('grantee_type', { enum: ['user', 'role', 'team', 'studio', 'public'] }).notNull(),
     granteeId: text('grantee_id'),
-    grantedBy: text('granted_by')
-      .notNull()
-      .references(() => users.id),
-    grantedAt: text('granted_at').notNull().default(''),
+    grantedBy: grantedBy(),
+    grantedAt: grantedAt(),
   },
   (t) => ({
     uniq: unique().on(t.kvId, t.action, t.granteeType, t.granteeId),
@@ -225,7 +203,7 @@ export const kvStorePermissions = sqliteTable(
 );
 
 export const auditLogs = sqliteTable('audit_logs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: autoId(),
   ts: integer('ts').notNull(),
   method: text('method').notNull(),
   url: text('url').notNull(),

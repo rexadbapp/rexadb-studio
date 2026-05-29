@@ -1,12 +1,12 @@
-import { definitions as connections } from './connections';
-import { definitions as queries } from './queries';
-import { definitions as users } from './users';
-import { definitions as roles } from './roles';
-import { definitions as invites } from './invites';
-import { definitions as audit } from './audit';
-import { definitions as permissionsView } from './permissions-view';
-import { definitions as teams } from './teams';
-import { definitions as kvStore } from './kv-store';
+import { connectionDefinitions } from './connections';
+import { queryDefinitions } from './queries';
+import { userDefinitions } from './users';
+import { roleDefinitions } from './roles';
+import { inviteDefinitions } from './invites';
+import { auditDefinitions } from './audit';
+import { permissionViewDefinitions } from './permissions-view';
+import { teamDefinitions } from './teams';
+import { kvStoreDefinitions } from './kv-store';
 
 export interface PermissionDef {
   code: string;
@@ -15,15 +15,15 @@ export interface PermissionDef {
 }
 
 export const PERMISSIONS: PermissionDef[] = [
-  ...connections,
-  ...queries,
-  ...users,
-  ...roles,
-  ...invites,
-  ...audit,
-  ...permissionsView,
-  ...teams,
-  ...kvStore,
+  ...connectionDefinitions,
+  ...queryDefinitions,
+  ...userDefinitions,
+  ...roleDefinitions,
+  ...inviteDefinitions,
+  ...auditDefinitions,
+  ...permissionViewDefinitions,
+  ...teamDefinitions,
+  ...kvStoreDefinitions,
 ];
 
 const ROUTE_MAP: Record<string, string[]> = {
@@ -56,12 +56,3 @@ const ROUTE_MAP: Record<string, string[]> = {
   'kv_store.manage': ['GET /api/kv-store', 'GET /api/kv-store/[id]', 'PUT /api/kv-store/[id]', 'DELETE /api/kv-store/[id]'],
 };
 
-export function validateRouteCoverage(): string[] {
-  const uncovered: string[] = [];
-  for (const perm of PERMISSIONS) {
-    if (!ROUTE_MAP[perm.code]) {
-      uncovered.push(`No routes mapped for permission: ${perm.code}`);
-    }
-  }
-  return uncovered;
-}

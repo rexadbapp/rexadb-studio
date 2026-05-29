@@ -2,17 +2,9 @@ import { ZodError } from 'zod';
 import { auditLog } from './audit';
 import type { NextRequest } from 'next/server';
 import { verifyStudioToken } from './auth';
+import { AppError } from './app-error';
 
-export class AppError extends Error {
-  constructor(
-    message: string,
-    public statusCode: number = 500,
-    public code?: string
-  ) {
-    super(message);
-    this.name = 'AppError';
-  }
-}
+export { AppError };
 
 function extractUserId(req?: NextRequest): string | undefined {
   if (!req) return undefined;
@@ -37,6 +29,18 @@ function reqMeta(req?: NextRequest) {
   };
 }
 
+const SENSITIVE_PATTERNS = [
+  '/api/auth/login',
+  '/api/auth/login/totp',
+  '/api/auth/totp/verify',
+  '/api/invites/accept',
+  '/api/connections/',
+];
+
+function shouldOmitBody(url: string): boolean {
+  return SENSITIVE_PATTERNS.some((p) => url.startsWith(p) || url === p);
+}
+
 export function apiResponse(data: unknown, status = 200, req?: NextRequest): Response {
   const meta = reqMeta(req);
   const url = meta.url ?? '';
@@ -47,57 +51,38 @@ export function apiResponse(data: unknown, status = 200, req?: NextRequest): Res
       url,
       status,
       reqHeaders: meta.headers,
-      resBody: data,
+      resBody: shouldOmitBody(url) ? undefined : data,
       userId: extractUserId(req),
     });
   }
   return Response.json(data, { status });
 }
 
+function respondWithAudit(status: number, body: Record<string, unknown>, meta: ReturnType<typeof reqMeta>, req?: NextRequest): Response {
+  auditLog({
+    ts: Date.now(), method: meta.method ?? 'UNKNOWN', url: meta.url ?? '',
+    status, reqHeaders: meta.headers, resBody: body, userId: extractUserId(req),
+  });
+  return Response.json(body, { status });
+}
+
 export function apiError(error: unknown, req?: NextRequest): Response {
   const meta = reqMeta(req);
 
   if (error instanceof ZodError) {
-    const body = { error: 'Validation failed', issues: error.issues };
-    auditLog({
-      ts: Date.now(),
-      method: meta.method ?? 'UNKNOWN',
-      url: meta.url ?? '',
-      status: 400,
-      reqHeaders: meta.headers,
-      resBody: body,
-      userId: extractUserId(req),
-    });
-    return Response.json(body, { status: 400 });
+    return respondWithAudit(400, { error: 'Validation failed', issues: error.issues }, meta, req);
   }
 
   if (error instanceof AppError) {
-    auditLog({
-      ts: Date.now(),
-      method: meta.method ?? 'UNKNOWN',
-      url: meta.url ?? '',
-      status: error.statusCode,
-      reqHeaders: meta.headers,
-      resBody: { error: error.message, code: error.code },
-      userId: extractUserId(req),
-    });
-    return Response.json(
-      { error: error.message, code: error.code },
-      { status: error.statusCode }
-    );
+    return respondWithAudit(error.statusCode, { error: error.message, code: error.code }, meta, req);
+  }
+
+  const err = error as any;
+  if (err?.statusCode === 429) {
+    return respondWithAudit(429, { error: err.message ?? 'Too many requests' }, meta, req);
   }
 
   const message = error instanceof Error ? error.message : 'Internal server error';
   console.error('Unhandled error:', error);
-
-  auditLog({
-    ts: Date.now(),
-    method: meta.method ?? 'UNKNOWN',
-    url: meta.url ?? '',
-    status: 500,
-    reqHeaders: meta.headers,
-    resBody: { error: message },
-    userId: extractUserId(req),
-  });
-  return Response.json({ error: message }, { status: 500 });
+  return respondWithAudit(500, { error: message }, meta, req);
 }

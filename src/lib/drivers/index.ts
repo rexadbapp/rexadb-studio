@@ -1,30 +1,12 @@
 import { PostgresDriver } from './postgres';
 import { MySqlDriver } from './mysql';
+import { type ConnectionConfig, type DatabaseDriver } from './types';
 
-export interface QueryResult {
-  rows: Record<string, unknown>[];
-  fields: string[];
-  rowCount: number;
-}
-
-export interface ConnectionConfig {
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  ssl: boolean;
-}
-
-export interface DatabaseDriver {
-  query(sql: string, params?: unknown[]): Promise<QueryResult>;
-  testConnection(): Promise<boolean>;
-  isReadOnlyQuery?(sql: string): boolean | Promise<boolean>;
-}
+export type { DatabaseDriver };
 
 const driverPool = new Map<string, DatabaseDriver>();
 
-export function createDriver(connectionId: string, type: string, config: ConnectionConfig): DatabaseDriver {
+function createDriver(connectionId: string, type: string, config: ConnectionConfig): DatabaseDriver {
   if (typeof config.password !== 'string') {
     throw new Error(`Invalid password for connection "${connectionId}": expected string, got ${typeof config.password}`);
   }
@@ -56,10 +38,17 @@ export function evictDriverIfAuthError(connectionId: string, err: unknown): void
   }
 }
 
-export function releaseDriver(connectionId: string): void {
-  driverPool.delete(connectionId);
-}
-
-export function releaseAllDrivers(): void {
-  driverPool.clear();
+export function createDriverFromConnection(
+  connectionId: string,
+  conn: { type: string; host: string; port: number; database: string; username: string; ssl: boolean },
+  password: string
+) {
+  return createDriver(connectionId, conn.type, {
+    host: conn.host,
+    port: conn.port,
+    database: conn.database,
+    username: conn.username,
+    password,
+    ssl: conn.ssl,
+  });
 }

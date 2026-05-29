@@ -1,110 +1,50 @@
-import { NextRequest } from 'next/server';
-import { getDb } from '@/db';
-import { teams, teamPermissions } from '@/db/schema';
-import { authenticate } from '@/lib/auth';
+import { teamPermissions } from '@/db/schema';
 import { requirePermission } from '@/lib/rbac';
-import { apiError, apiResponse, AppError } from '@/lib/errors';
+import { apiResponse, AppError } from '@/lib/errors';
+import { withHandler } from '@/lib/api-handler';
+import { requireTeam, upsertEntity } from '@/lib/db-helpers';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+
+async function findTeamPermission(db: any, teamId: number, code: string) {
+  return await db.query.teamPermissions.findFirst({
+    where: and(eq(teamPermissions.teamId, teamId), eq(teamPermissions.permissionCode, code)),
+  });
+}
 
 const permissionSchema = z.object({
   permissionCode: z.string().min(1),
 });
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const db = getDb();
-    const user = await authenticate(req);
-    await requirePermission(user.id, 'teams.manage_access');
+export const GET = withHandler(async ({ req, params: { id }, user, db }) => {
+  await requirePermission(user.id, 'teams.manage_access');
+  const permissions = await db.query.teamPermissions.findMany({ where: eq(teamPermissions.teamId, Number(id)) });
+  return apiResponse({ data: permissions }, 200, req);
+});
 
-    const { id } = await params;
-    const team = await db.query.teams.findFirst({
-      where: eq(teams.id, Number(id)),
-    });
-    if (!team) throw new AppError('Team not found', 404);
+export const POST = withHandler(async ({ req, params: { id }, user, db }) => {
+  await requirePermission(user.id, 'teams.manage_access');
+  const body = permissionSchema.parse(await req.json());
+  const team = await requireTeam(db, id);
 
-    const permissions = await db.query.teamPermissions.findMany({
-      where: eq(teamPermissions.teamId, team.id),
-    });
+  const existing = await findTeamPermission(db, team.id, body.permissionCode);
+  if (existing) throw new AppError('Team permission already exists', 409);
 
-    return apiResponse({ data: permissions }, 200, req);
-  } catch (err) {
-    return apiError(err, req);
-  }
-}
+  const now = new Date().toISOString();
+  const [tp] = await db.insert(teamPermissions).values({ teamId: team.id, permissionCode: body.permissionCode, grantedBy: user.id, grantedAt: now }).returning();
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const db = getDb();
-    const user = await authenticate(req);
-    await requirePermission(user.id, 'teams.manage_access');
+  return apiResponse({ data: tp }, 201, req);
+});
 
-    const { id } = await params;
-    const body = permissionSchema.parse(await req.json());
+export const DELETE = withHandler(async ({ req, params: params, user, db }) => {
+  await requirePermission(user.id, 'teams.manage_access');
+  const body = permissionSchema.parse(await req.json());
+  const team = await requireTeam(db, params.id);
 
-    const team = await db.query.teams.findFirst({
-      where: eq(teams.id, Number(id)),
-    });
-    if (!team) throw new AppError('Team not found', 404);
+  const existing = await findTeamPermission(db, team.id, body.permissionCode);
+  if (!existing) throw new AppError('Team permission not found', 404);
 
-    const existing = await db.query.teamPermissions.findFirst({
-      where: and(
-        eq(teamPermissions.teamId, team.id),
-        eq(teamPermissions.permissionCode, body.permissionCode)
-      ),
-    });
-    if (existing) throw new AppError('Team permission already exists', 409);
+  await db.delete(teamPermissions).where(and(eq(teamPermissions.teamId, team.id), eq(teamPermissions.permissionCode, body.permissionCode)));
 
-    const now = new Date().toISOString();
-    const [tp] = await db
-      .insert(teamPermissions)
-      .values({
-        teamId: team.id,
-        permissionCode: body.permissionCode,
-        grantedBy: user.id,
-        grantedAt: now,
-      })
-      .returning();
-
-    return apiResponse({ data: tp }, 201, req);
-  } catch (err) {
-    return apiError(err, req);
-  }
-}
-
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const db = getDb();
-    const user = await authenticate(req);
-    await requirePermission(user.id, 'teams.manage_access');
-
-    const { id } = await params;
-    const body = permissionSchema.parse(await req.json());
-
-    const team = await db.query.teams.findFirst({
-      where: eq(teams.id, Number(id)),
-    });
-    if (!team) throw new AppError('Team not found', 404);
-
-    const existing = await db.query.teamPermissions.findFirst({
-      where: and(
-        eq(teamPermissions.teamId, team.id),
-        eq(teamPermissions.permissionCode, body.permissionCode)
-      ),
-    });
-    if (!existing) throw new AppError('Team permission not found', 404);
-
-    await db
-      .delete(teamPermissions)
-      .where(
-        and(
-          eq(teamPermissions.teamId, team.id),
-          eq(teamPermissions.permissionCode, body.permissionCode)
-        )
-      );
-
-    return apiResponse({ data: { success: true } }, 200, req);
-  } catch (err) {
-    return apiError(err, req);
-  }
-}
+  return apiResponse({ data: { success: true } }, 200, req);
+});

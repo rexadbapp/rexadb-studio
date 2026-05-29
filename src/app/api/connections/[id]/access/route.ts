@@ -1,34 +1,29 @@
-import { NextRequest } from 'next/server';
-import { getDb } from '@/db';
-import { connectionAccess, connections } from '@/db/schema';
-import { authenticate } from '@/lib/auth';
+import { connectionAccess } from '@/db/schema';
 import { requirePermission } from '@/lib/rbac';
-import { apiError, apiResponse, AppError } from '@/lib/errors';
+import { apiResponse } from '@/lib/errors';
+import { withHandler } from '@/lib/api-handler';
+import { requireConnection, upsertEntity } from '@/lib/db-helpers';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const db = getDb();
-    const user = await authenticate(req);
-    await requirePermission(user.id, 'connections.manage_access');
-
-    const { id } = await params;
-    const conn = await db.query.connections.findFirst({ where: eq(connections.id, id) });
-    if (!conn) throw new AppError('Connection not found', 404);
-
-    const access = await db.query.connectionAccess.findMany({
-      where: eq(connectionAccess.connectionId, id),
-      with: {
-        role: { columns: { id: true, name: true, description: true } },
-      },
-    });
-
-    return apiResponse({ data: access }, 200, req);
-  } catch (err) {
-    return apiError(err, req);
-  }
+function av(body: { accessType: string; queryPattern?: string; allowedQueryIds?: number[] }) {
+  return {
+    accessType: body.accessType,
+    queryPattern: body.queryPattern ?? null,
+    allowedQueryIds: body.allowedQueryIds ? JSON.stringify(body.allowedQueryIds) : null,
+  };
 }
+
+export const GET = withHandler(async ({ req, params, user, db }) => {
+  const { id } = params;
+  await requirePermission(user.id, 'connections.manage_access');
+  await requireConnection(db, id);
+  const access = await db.query.connectionAccess.findMany({
+    where: eq(connectionAccess.connectionId, id),
+    with: { role: { columns: { id: true, name: true, description: true } } },
+  });
+  return apiResponse({ data: access }, 200, req);
+});
 
 const setAccessSchema = z.object({
   roleId: z.number().int(),
@@ -37,46 +32,21 @@ const setAccessSchema = z.object({
   allowedQueryIds: z.array(z.number().int()).optional(),
 });
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const db = getDb();
-    const user = await authenticate(req);
-    await requirePermission(user.id, 'connections.manage_access');
+export const PUT = withHandler(async ({ req, params: { id }, user, db }) => {
+  await requirePermission(user.id, 'connections.manage_access');
+  const body = setAccessSchema.parse(await req.json());
+  await requireConnection(db, id);
 
-    const { id } = await params;
-    const body = setAccessSchema.parse(await req.json());
+  const existing = await db.query.connectionAccess.findFirst({
+    where: and(eq(connectionAccess.connectionId, id), eq(connectionAccess.roleId, body.roleId)),
+  });
 
-    const conn = await db.query.connections.findFirst({ where: eq(connections.id, id) });
-    if (!conn) throw new AppError('Connection not found', 404);
+  const values: Record<string, unknown> = {
+    connectionId: id,
+    roleId: body.roleId,
+    ...av(body),
+  };
 
-    const existing = await db.query.connectionAccess.findFirst({
-      where: and(
-        eq(connectionAccess.connectionId, id),
-        eq(connectionAccess.roleId, body.roleId)
-      ),
-    });
-
-    const values = {
-      connectionId: id,
-      roleId: body.roleId,
-      accessType: body.accessType,
-      queryPattern: body.queryPattern ?? null,
-      allowedQueryIds: body.allowedQueryIds
-        ? JSON.stringify(body.allowedQueryIds)
-        : null,
-    };
-
-    if (existing) {
-      await db
-        .update(connectionAccess)
-        .set(values)
-        .where(eq(connectionAccess.id, existing.id));
-    } else {
-      await db.insert(connectionAccess).values(values);
-    }
-
-    return apiResponse({ data: values }, 200, req);
-  } catch (err) {
-    return apiError(err, req);
-  }
-}
+  await upsertEntity(db, connectionAccess, existing, values);
+  return apiResponse({ data: values }, 200, req);
+});
