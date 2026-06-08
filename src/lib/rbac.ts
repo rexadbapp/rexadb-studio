@@ -136,7 +136,7 @@ async function checkCustomAccess(db: ReturnType<typeof getDb>, connectionId: str
   return { allowed: false, accessType: 'CUSTOM', queryPattern: access.queryPattern, allowedQueryIds: allowedIds };
 }
 
-async function checkTeamAccess(db: ReturnType<typeof getDb>, userId: string, connectionId: string): Promise<ConnectionAccessResult | null> {
+async function findTeamAccessRow(db: ReturnType<typeof getDb>, userId: string, connectionId: string): Promise<typeof connectionAccess.$inferSelect | null> {
   const userTeams = await db.query.teamMembers.findMany({
     where: (tm, { eq }) => eq(tm.userId, userId),
     columns: { teamId: true },
@@ -144,13 +144,10 @@ async function checkTeamAccess(db: ReturnType<typeof getDb>, userId: string, con
   if (userTeams.length === 0) return null;
 
   const teamIds = userTeams.map(t => t.teamId);
-  const teamAccess = await db.select().from(connectionAccess)
+  return db.select().from(connectionAccess)
     .where(and(eq(connectionAccess.connectionId, connectionId), isNotNull(connectionAccess.teamId), inArray(connectionAccess.teamId, teamIds)))
     .limit(1)
     .then(rows => rows[0] ?? null);
-  if (!teamAccess) return null;
-
-  return { allowed: true, accessType: teamAccess.accessType as AccessLevel, queryPattern: teamAccess.queryPattern, allowedQueryIds: teamAccess.allowedQueryIds ? JSON.parse(teamAccess.allowedQueryIds) : [] };
 }
 
 export async function checkConnectionAccess(userId: string, connectionId: string, sql: string): Promise<ConnectionAccessResult> {
@@ -164,18 +161,24 @@ export async function checkConnectionAccess(userId: string, connectionId: string
   });
   if (!user) throw new AppError('User not found', 404);
 
-  const access = await db.query.connectionAccess.findFirst({
+  const roleAccess = await db.query.connectionAccess.findFirst({
     where: and(eq(connectionAccess.connectionId, connectionId), eq(connectionAccess.roleId, user.roleId)),
   });
-  if (!access) return denied();
 
-  if (access.accessType === 'FULL_ACCESS') return fullAccess();
-  if (access.accessType === 'READ_ONLY') return checkReadOnlyAccess(sql);
-  if (access.accessType === 'CUSTOM') return checkCustomAccess(db, connectionId, sql, access);
-  if (access.accessType === 'READ_AND_REQUEST') return checkReadAndRequestAccess(sql);
+  if (roleAccess) {
+    if (roleAccess.accessType === 'FULL_ACCESS') return fullAccess();
+    if (roleAccess.accessType === 'READ_ONLY') return checkReadOnlyAccess(sql);
+    if (roleAccess.accessType === 'CUSTOM') return checkCustomAccess(db, connectionId, sql, roleAccess);
+    if (roleAccess.accessType === 'READ_AND_REQUEST') return checkReadAndRequestAccess(sql);
+  }
 
-  const teamResult = await checkTeamAccess(db, userId, connectionId);
-  if (teamResult) return teamResult;
+  const teamAccess = await findTeamAccessRow(db, userId, connectionId);
+  if (teamAccess) {
+    if (teamAccess.accessType === 'FULL_ACCESS') return fullAccess();
+    if (teamAccess.accessType === 'READ_ONLY') return checkReadOnlyAccess(sql);
+    if (teamAccess.accessType === 'CUSTOM') return checkCustomAccess(db, connectionId, sql, teamAccess);
+    if (teamAccess.accessType === 'READ_AND_REQUEST') return checkReadAndRequestAccess(sql);
+  }
 
   return denied();
 }

@@ -16,7 +16,7 @@ export class PostgresDriver implements DatabaseDriver {
       idleTimeoutMillis: 60_000,
       connectionTimeoutMillis: 10_000,
     });
-    this.pool.on('error', () => {});
+    this.pool.on('error', (err) => console.error('[postgres] pool error:', err.message));
   }
 
   async query(sql: string, params?: unknown[]): Promise<QueryResult> {
@@ -26,5 +26,9 @@ export class PostgresDriver implements DatabaseDriver {
       fields: result.fields.map((f) => f.name),
       rowCount: result.rowCount ?? 0,
     };
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
   }
 }

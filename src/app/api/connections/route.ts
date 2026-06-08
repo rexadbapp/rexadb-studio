@@ -1,9 +1,9 @@
-import { connections, connectionAccess } from '@/db/schema';
+import { connections, connectionAccess, teamMembers } from '@/db/schema';
 import { requirePermission, hasPermission } from '@/lib/rbac';
 import { apiResponse, AppError } from '@/lib/errors';
 import { withHandler } from '@/lib/api-handler';
 import { encrypt } from '@/lib/encryption';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import crypto from 'node:crypto';
 
@@ -28,11 +28,26 @@ export const GET = withHandler(async ({ req, user, db }) => {
       orderBy: (c, { desc }) => [desc(c.createdAt)],
     });
   } else {
-    const accessRows = await db.query.connectionAccess.findMany({
+    const roleAccess = await db.query.connectionAccess.findMany({
       where: eq(connectionAccess.roleId, user.roleId),
       columns: { connectionId: true },
     });
-    const ids = accessRows.map((a) => a.connectionId);
+    let ids = roleAccess.map((a) => a.connectionId);
+
+    const userTeams = await db.query.teamMembers.findMany({
+      where: eq(teamMembers.userId, user.id),
+      columns: { teamId: true },
+    });
+    if (userTeams.length > 0) {
+      const teamIds = userTeams.map(t => t.teamId);
+      const teamAccess = await db.query.connectionAccess.findMany({
+        where: and(isNotNull(connectionAccess.teamId), inArray(connectionAccess.teamId, teamIds)),
+        columns: { connectionId: true },
+      });
+      ids = [...ids, ...teamAccess.map((a) => a.connectionId)];
+    }
+
+    ids = [...new Set(ids)];
     if (ids.length === 0) return apiResponse({ data: [] }, 200, req);
 
     list = await db.query.connections.findMany({

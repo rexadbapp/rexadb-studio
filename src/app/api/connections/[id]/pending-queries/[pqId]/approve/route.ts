@@ -14,7 +14,7 @@ export const POST = withHandler(async ({ req, params: { id, pqId }, user, db }) 
   await requirePendingQueryApproval(user.id, pq.teamId);
   await updatePendingQueryStatus(db, pq.id, 'APPROVED', user.id);
 
-  const driver = createDriverFromConnection(id, conn, decrypt(conn.encryptedPassword));
+  const driver = await createDriverFromConnection(id, conn, decrypt(conn.encryptedPassword));
   const queryParams = pq.params ? JSON.parse(pq.params) : undefined;
   const { result, duration } = await executeAndLogQuery(db, id, user.id, driver, pq.sql, queryParams);
 

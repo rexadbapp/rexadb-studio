@@ -21,11 +21,10 @@ export class MssqlDriver implements DatabaseDriver {
       },
       connectionTimeout: 10_000,
     });
-    this.pool.on('error', () => {});
+    this.pool.on('error', (err) => console.error('[mssql] pool error:', err.message));
   }
 
   async query(sqlText: string, params?: unknown[]): Promise<QueryResult> {
-    await this.pool.connect();
     const request = this.pool.request();
     if (params) {
       params.forEach((p, i) => {
@@ -38,5 +37,9 @@ export class MssqlDriver implements DatabaseDriver {
       fields: result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [],
       rowCount: result.rowsAffected?.[0] ?? 0,
     };
+  }
+
+  async close(): Promise<void> {
+    await this.pool.close();
   }
 }

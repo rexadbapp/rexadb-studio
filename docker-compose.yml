@@ -7,6 +7,9 @@ services:
     environment:
       DATABASE_URL: "file:/app/data/rexadb.db"
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      STUDIO_JWT_SECRET: ${STUDIO_JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - rexadb-data:/app/data
     restart: unless-stopped

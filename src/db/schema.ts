@@ -9,10 +9,10 @@ function uuidId() {
   return text('id').primaryKey();
 }
 function createdAt() {
-  return text('created_at').notNull().default('');
+  return text('created_at').notNull();
 }
 function updatedAt() {
-  return text('updated_at').notNull().default('');
+  return text('updated_at').notNull();
 }
 function createdBy() {
   return text('created_by').notNull().references(() => users.id);
@@ -21,7 +21,7 @@ function grantedBy() {
   return text('granted_by').notNull().references(() => users.id);
 }
 function grantedAt() {
-  return text('granted_at').notNull().default('');
+  return text('granted_at').notNull();
 }
 function boolField(name: string) {
   return integer(name, { mode: 'boolean' }).notNull().default(false);
@@ -114,7 +114,7 @@ export const queryLogs = sqliteTable('query_logs', {
   userId: text('user_id').notNull().references(() => users.id),
   query: text('query').notNull(),
   duration: integer('duration').notNull().default(0),
-  executedAt: text('executed_at').notNull().default(''),
+  executedAt: text('executed_at').notNull(),
 });
 
 export const invites = sqliteTable('invites', {
@@ -144,7 +144,7 @@ export const teamMembers = sqliteTable(
     teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
     userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     role: text('role', { enum: ['admin', 'member'] }).notNull().default('member'),
-    joinedAt: text('joined_at').notNull().default(''),
+    joinedAt: text('joined_at').notNull(),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.teamId, t.userId] }),

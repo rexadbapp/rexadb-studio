@@ -15,6 +15,7 @@ export interface ConnectionConfig {
 
 export interface DatabaseDriver {
   query(sql: string, params?: unknown[]): Promise<QueryResult>;
+  close(): Promise<void>;
 }
 
 

@@ -11,10 +11,15 @@ export class MariaDbDriver implements DatabaseDriver {
 
   async query(sql: string, params?: unknown[]): Promise<QueryResult> {
     const rows = await this.pool.query(sql, params ?? []);
+    const rawRows = rows as Record<string, unknown>[];
     return {
-      rows: rows as Record<string, unknown>[],
-      fields: [],
-      rowCount: Array.isArray(rows) ? rows.length : 0,
+      rows: rawRows,
+      fields: rawRows.length > 0 ? Object.keys(rawRows[0]) : [],
+      rowCount: rawRows.length,
     };
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
   }
 }

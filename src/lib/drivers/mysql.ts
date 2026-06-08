@@ -11,7 +11,15 @@ export class MySqlDriver implements DatabaseDriver {
   }
 
   async query(sql: string, params?: unknown[]): Promise<QueryResult> {
-    const [rows] = await this.pool.execute(sql, params as any[]);
-    return { rows: rows as Record<string, unknown>[], fields: [], rowCount: Array.isArray(rows) ? rows.length : 0 };
+    const [rows, fields] = await this.pool.execute(sql, params as any[]);
+    return {
+      rows: rows as Record<string, unknown>[],
+      fields: (fields ?? []).map((f) => f.name),
+      rowCount: Array.isArray(rows) ? rows.length : 0,
+    };
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
   }
 }

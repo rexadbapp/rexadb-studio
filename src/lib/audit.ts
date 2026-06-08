@@ -19,7 +19,7 @@ const MAX_STRING_LEN = 10_000;
 const MAX_TRUNCATE_DEPTH = 5;
 const MAX_BODY_SIZE = 10_000;
 
-function bigintReplacer(_key: string, value: unknown): unknown {
+export function bigintReplacer(_key: string, value: unknown): unknown {
   if (typeof value === 'bigint') return Number(value);
   return value;
 }

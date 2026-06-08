@@ -2,16 +2,11 @@ import { checkConnectionAccess, hasPermission } from '@/lib/rbac';
 import { AppError } from '@/lib/errors';
 import { withHandler } from '@/lib/api-handler';
 import { requireConnection } from '@/lib/db-helpers';
-import { auditLog } from '@/lib/audit';
+import { auditLog, bigintReplacer } from '@/lib/audit';
 import { decrypt } from '@/lib/encryption';
 import { createDriverFromConnection } from '@/lib/drivers';
 import { executeAndLogQuery } from '@/lib/query-executor';
 import { z } from 'zod';
-
-function bigintReplacer(_key: string, value: unknown): unknown {
-  if (typeof value === 'bigint') return Number(value);
-  return value;
-}
 
 const MAX_ROWS = 2000;
 
@@ -36,7 +31,7 @@ export const POST = withHandler(async ({ req, params: { id }, user, db }) => {
     throw new AppError('Access denied for this connection or query', 403);
   }
 
-  const driver = createDriverFromConnection(id, conn, decrypt(conn.encryptedPassword));
+  const driver = await createDriverFromConnection(id, conn, decrypt(conn.encryptedPassword));
   const { result, duration } = await executeAndLogQuery(db, id, user.id, driver, body.sql, body.params);
 
   const truncated = result.rows.length > MAX_ROWS;

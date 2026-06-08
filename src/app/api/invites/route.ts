@@ -59,7 +59,7 @@ export const POST = withHandler(async ({ req, user, db }) => {
     .insert(invites)
     .values({
       tokenHash,
-      email,
+      email: email.toLowerCase(),
       roleId: roleId ?? 1,
       status: 'PENDING',
       expiresAt,

@@ -10,6 +10,7 @@ import { type ConnectionConfig, type DatabaseDriver } from './types';
 export type { DatabaseDriver };
 
 const driverPool = new Map<string, DatabaseDriver>();
+const driverPending = new Map<string, Promise<DatabaseDriver>>();
 
 function createDriver(connectionId: string, type: string, config: ConnectionConfig): DatabaseDriver {
   if (typeof config.password !== 'string') {
@@ -50,11 +51,47 @@ function createDriver(connectionId: string, type: string, config: ConnectionConf
   return driver;
 }
 
+export async function getOrCreateDriver(
+  connectionId: string,
+  type: string,
+  config: ConnectionConfig
+): Promise<DatabaseDriver> {
+  const existing = driverPool.get(connectionId);
+  if (existing) return existing;
+
+  const pending = driverPending.get(connectionId);
+  if (pending) return pending;
+
+  const promise = new Promise<DatabaseDriver>((resolve) => {
+    const driver = createDriver(connectionId, type, config);
+    resolve(driver);
+  });
+
+  driverPending.set(connectionId, promise);
+  try {
+    return await promise;
+  } finally {
+    driverPending.delete(connectionId);
+  }
+}
+
+export async function evictDriver(connectionId: string): Promise<void> {
+  const driver = driverPool.get(connectionId);
+  if (driver) {
+    driverPool.delete(connectionId);
+    try { await driver.close(); } catch {}
+  }
+}
+
 export function evictDriverIfAuthError(connectionId: string, err: unknown): void {
   if (!driverPool.has(connectionId)) return;
   const msg = err instanceof Error ? err.message : String(err);
   if (/password|SASL|SCRAM|authentication|auth/i.test(msg)) {
+    const driver = driverPool.get(connectionId);
     driverPool.delete(connectionId);
+    if (driver) {
+      void driver.close();
+    }
   }
 }
 
@@ -63,7 +100,7 @@ export function createDriverFromConnection(
   conn: { type: string; host: string; port: number; database: string; username: string; ssl: boolean },
   password: string
 ) {
-  return createDriver(connectionId, conn.type, {
+  return getOrCreateDriver(connectionId, conn.type, {
     host: conn.host,
     port: conn.port,
     database: conn.database,

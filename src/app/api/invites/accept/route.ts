@@ -1,7 +1,7 @@
 import { invites, users } from '@/db/schema';
 import { apiResponse, AppError } from '@/lib/errors';
 import { withHandler } from '@/lib/api-handler';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { generateStudioToken } from '@/lib/auth';
 import crypto from 'node:crypto';
 import { bcrypt } from '@/lib/bcrypt';
@@ -17,11 +17,14 @@ export const POST = withHandler(async ({ req, db }) => {
   const { token, name, email } = acceptSchema.parse(await req.json());
 
   const pendingInvites = await db.query.invites.findMany({
-    where: eq(invites.status, 'PENDING'),
+    where: and(eq(invites.status, 'PENDING'), eq(invites.email, email.toLowerCase())),
   });
 
   let matchedInvite = null;
   for (const pending of pendingInvites) {
+    if (new Date(pending.expiresAt) < new Date()) {
+      continue;
+    }
     const isValid = await bcrypt.compare(token, pending.tokenHash);
     if (isValid) {
       matchedInvite = pending;
@@ -30,11 +33,7 @@ export const POST = withHandler(async ({ req, db }) => {
   }
 
   if (!matchedInvite) {
-    throw new AppError('Invalid or expired token', 400);
-  }
-
-  if (matchedInvite.email.toLowerCase() !== email.toLowerCase()) {
-    throw new AppError('Email does not match invitation', 400);
+    throw new AppError('Invalid or expired invitation', 400);
   }
 
   const now = new Date().toISOString();
