@@ -75,7 +75,7 @@ export const users = sqliteTable('users', {
 export const connections = sqliteTable('connections', {
   id: uuidId(),
   name: text('name').notNull(),
-  type: text('type', { enum: ['postgres', 'mysql'] }).notNull(),
+  type: text('type', { enum: ['postgres', 'mysql', 'mariadb', 'mssql', 'cockroachdb', 'yugabyte', 'redshift'] }).notNull(),
   host: text('host').notNull(),
   port: integer('port').notNull(),
   database: text('database').notNull(),

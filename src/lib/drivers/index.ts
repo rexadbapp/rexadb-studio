@@ -1,5 +1,10 @@
 import { PostgresDriver } from './postgres';
 import { MySqlDriver } from './mysql';
+import { MariaDbDriver } from './mariadb';
+import { MssqlDriver } from './mssql';
+import { CockroachDbDriver } from './cockroachdb';
+import { YugabyteDriver } from './yugabyte';
+import { RedshiftDriver } from './redshift';
 import { type ConnectionConfig, type DatabaseDriver } from './types';
 
 export type { DatabaseDriver };
@@ -22,8 +27,23 @@ function createDriver(connectionId: string, type: string, config: ConnectionConf
     case 'mysql':
       driver = new MySqlDriver(config);
       break;
+    case 'mariadb':
+      driver = new MariaDbDriver(config);
+      break;
+    case 'mssql':
+      driver = new MssqlDriver(config);
+      break;
+    case 'cockroachdb':
+      driver = new CockroachDbDriver(config);
+      break;
+    case 'yugabyte':
+      driver = new YugabyteDriver(config);
+      break;
+    case 'redshift':
+      driver = new RedshiftDriver(config);
+      break;
     default:
-      throw new Error(`Unsupported database type: "${type}". Available: postgres, mysql`);
+      throw new Error(`Unsupported database type: "${type}". Available: postgres, mysql, mariadb, mssql, cockroachdb, yugabyte, redshift`);
   }
 
   driverPool.set(connectionId, driver);

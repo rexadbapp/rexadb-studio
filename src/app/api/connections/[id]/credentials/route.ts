@@ -18,9 +18,15 @@ export const GET = withHandler(async ({ req, params: { id }, user, db }) => {
       username: conn.username,
       password,
       connectionString:
-        conn.type === 'postgres'
+        conn.type === 'postgres' || conn.type === 'cockroachdb' || conn.type === 'yugabyte'
           ? `postgresql://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port}/${conn.database}`
-          : `mysql://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port}/${conn.database}`,
+          : conn.type === 'mysql'
+            ? `mysql://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port}/${conn.database}`
+            : conn.type === 'mariadb'
+              ? `mariadb://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port}/${conn.database}`
+              : conn.type === 'redshift'
+                ? `redshift://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port}/${conn.database}`
+                : `sqlserver://${conn.username}:${encodeURIComponent(password)}@${conn.host}:${conn.port};database=${conn.database}`,
     },
   }, 200, req);
 });

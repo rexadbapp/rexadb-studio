@@ -19,23 +19,26 @@
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.42.0",
     "jsonwebtoken": "^9.0.3",
+    "mariadb": "^3.5.2",
+    "mssql": "^12.5.5",
     "mysql2": "^3.14.0",
     "next": "^15.3.0",
     "otplib": "^13.4.0",
     "pg": "^8.14.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "zod": "^3.24.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.2",
     "@types/better-sqlite3": "^7.6.0",
     "@types/jsonwebtoken": "^9.0.6",
+    "@types/mssql": "^12.3.0",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.11.0",
     "@types/react": "19.2.15",
-    "typescript": "^5.8.0",
-    "drizzle-kit": "^0.31.0"
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.8.0"
   }
 }

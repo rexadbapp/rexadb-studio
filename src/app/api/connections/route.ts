@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
-  type: z.enum(['postgres', 'mysql']),
+  type: z.enum(['postgres', 'mysql', 'mariadb', 'mssql', 'cockroachdb', 'yugabyte', 'redshift']),
   host: z.string().min(1),
   port: z.number().int().min(1).max(65535),
   database: z.string().min(1),
