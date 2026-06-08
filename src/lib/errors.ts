@@ -77,11 +77,6 @@ export function apiError(error: unknown, req?: NextRequest): Response {
     return respondWithAudit(error.statusCode, { error: error.message, code: error.code }, meta, req);
   }
 
-  const err = error as any;
-  if (err?.statusCode === 429) {
-    return respondWithAudit(429, { error: err.message ?? 'Too many requests' }, meta, req);
-  }
-
   const message = error instanceof Error ? error.message : 'Internal server error';
   console.error('Unhandled error:', error);
   return respondWithAudit(500, { error: message }, meta, req);

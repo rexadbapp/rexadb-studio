@@ -51,7 +51,7 @@ function createDriver(connectionId: string, type: string, config: ConnectionConf
   return driver;
 }
 
-export async function getOrCreateDriver(
+async function getOrCreateDriver(
   connectionId: string,
   type: string,
   config: ConnectionConfig
@@ -75,7 +75,7 @@ export async function getOrCreateDriver(
   }
 }
 
-export async function evictDriver(connectionId: string): Promise<void> {
+async function evictDriver(connectionId: string): Promise<void> {
   const driver = driverPool.get(connectionId);
   if (driver) {
     driverPool.delete(connectionId);
@@ -83,14 +83,16 @@ export async function evictDriver(connectionId: string): Promise<void> {
   }
 }
 
+const AUTH_ERROR_PATTERNS = /password|SASL|SCRAM|authentication|auth|login|credentials|access denied|not authorized|permission denied|invalid user|login failed/i;
+
 export function evictDriverIfAuthError(connectionId: string, err: unknown): void {
   if (!driverPool.has(connectionId)) return;
   const msg = err instanceof Error ? err.message : String(err);
-  if (/password|SASL|SCRAM|authentication|auth/i.test(msg)) {
+  if (AUTH_ERROR_PATTERNS.test(msg)) {
     const driver = driverPool.get(connectionId);
     driverPool.delete(connectionId);
     if (driver) {
-      void driver.close();
+      driver.close().catch(() => {});
     }
   }
 }

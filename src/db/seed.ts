@@ -3,6 +3,7 @@ import { permissions, roles, rolePermissions, users } from './schema';
 import { PERMISSIONS } from '@/permissions';
 import { DEFAULT_ROLES } from '@/config/roles';
 import { eq } from 'drizzle-orm';
+import crypto from 'node:crypto';
 
 export async function seed(): Promise<void> {
   const db = getDb();
@@ -69,13 +70,13 @@ export async function seed(): Promise<void> {
   });
 
   if (adminRole) {
-    const adminId = process.env.ADMIN_ID ?? '00000000-0000-0000-0000-000000000000';
+    const adminId = process.env.ADMIN_ID ?? crypto.randomUUID();
+    const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@rexadb.local';
     const adminExists = await db.query.users.findFirst({
-      where: eq(users.id, adminId),
+      where: eq(users.email, adminEmail),
     });
 
     if (!adminExists) {
-      const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@rexadb.local';
       await db.insert(users).values({
         id: adminId,
         email: adminEmail,

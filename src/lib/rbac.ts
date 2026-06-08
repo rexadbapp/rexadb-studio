@@ -100,8 +100,22 @@ function fullAccess(): ConnectionAccessResult {
   return { allowed: true, accessType: 'FULL_ACCESS', queryPattern: null, allowedQueryIds: [] };
 }
 
+const WRITE_KEYWORDS = /\b(INSERT|UPDATE|DELETE|MERGE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE|REPLACE|LOAD|IMPORT|COPY)\b/i;
+
+function stripSqlComments(sql: string): string {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/--.*$/gm, '')
+    .trim();
+}
+
 function isReadQuery(sql: string): boolean {
-  return /^(SELECT|WITH|EXPLAIN|DESCRIBE|SHOW)\b/.test(sql.trim().toUpperCase());
+  const cleaned = stripSqlComments(sql).toUpperCase();
+  const firstWord = cleaned.match(/^\w+/)?.[0] ?? '';
+  if (firstWord === 'WITH') {
+    return !WRITE_KEYWORDS.test(cleaned);
+  }
+  return ['SELECT', 'EXPLAIN', 'DESCRIBE', 'SHOW'].includes(firstWord);
 }
 
 function checkReadOnlyAccess(sql: string): ConnectionAccessResult {
