@@ -141,10 +141,14 @@ async function checkCustomAccess(db: ReturnType<typeof getDb>, connectionId: str
   }
 
   if (allowedIds.length > 0) {
-    const savedQuery = await db.query.savedQueries.findFirst({
+    const matchingQueries = await db.query.savedQueries.findMany({
       where: and(eq(savedQueries.connectionId, connectionId), inArray(savedQueries.id, allowedIds)),
     });
-    if (savedQuery) return { allowed: true, accessType: 'CUSTOM', queryPattern: null, allowedQueryIds: allowedIds };
+    for (const sq of matchingQueries) {
+      if (sq.queryText.trim() === sql.trim()) {
+        return { allowed: true, accessType: 'CUSTOM', queryPattern: null, allowedQueryIds: allowedIds };
+      }
+    }
   }
 
   return { allowed: false, accessType: 'CUSTOM', queryPattern: access.queryPattern, allowedQueryIds: allowedIds };
