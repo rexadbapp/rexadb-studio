@@ -38,7 +38,7 @@ Rexadb Studio is a Next.js-based backend admin/studio application for managing d
 
 | File | Purpose |
 |------|---------|
-| `next.config.ts` | Standalone output, CORS on `/api/*`, proxy `/api/studio-proxy/:path*` → `/api/:path*` |
+| `next.config.ts` | Standalone output, proxy `/api/studio-proxy/:path*` → `/api/:path*` |
 | `drizzle.config.ts` | Drizzle Kit — schema `./src/db/schema.ts`, output `./drizzle`, SQLite dialect |
 | `tsconfig.json` | Strict mode, `@/*` → `./src/*`, bundler module resolution |
 | `package.json` | Dependencies and scripts (dev, build, start, db:*, setup) |
